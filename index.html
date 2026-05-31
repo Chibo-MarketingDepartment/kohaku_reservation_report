@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>琥 千房 虎ノ門 — 予約分析ダッシュボード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="data.js"></script>
+<style>
+:root {
+  --bg: #0f0e0d;
+  --bg2: #1a1916;
+  --bg3: #242220;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f0ede8;
+  --text2: #a09a90;
+  --text3: #6a6460;
+  --accent: #c8a96e;
+  --accent2: #e8c88a;
+  --new: #5b9bd5;
+  --rep: #5daa87;
+  --danger: #c0614a;
+  --font: 'Noto Sans JP', sans-serif;
+  --mono: 'DM Mono', monospace;
+  --radius: 10px;
+  --radius-lg: 16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.6;min-height:100vh}
+
+/* ── NAV ── */
+nav{position:sticky;top:0;z-index:100;background:rgba(15,14,13,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 1rem}
+.nav-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:0;height:52px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.nav-inner::-webkit-scrollbar{display:none}
+.nav-title{font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap;margin-right:1.5rem;letter-spacing:.05em}
+.nav-links{display:flex;gap:0;flex-shrink:0}
+.nav-link{color:var(--text2);font-size:12px;padding:0 14px;height:52px;display:flex;align-items:center;white-space:nowrap;cursor:pointer;border-bottom:2px solid transparent;transition:color .2s,border-color .2s;text-decoration:none}
+.nav-link:hover,.nav-link.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* ── LAYOUT ── */
+.container{max-width:1200px;margin:0 auto;padding:1.5rem 1rem 4rem}
+section{margin-bottom:3rem}
+.section-label{font-size:11px;font-weight:500;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── KPI CARDS ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem}
+@media(min-width:600px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:900px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),transparent)}
+.kpi-label{font-size:11px;color:var(--text3);letter-spacing:.06em;margin-bottom:.4rem}
+.kpi-value{font-size:28px;font-weight:700;font-family:var(--mono);color:var(--text);line-height:1}
+.kpi-sub{font-size:11px;color:var(--text2);margin-top:.3rem}
+.kpi-value.accent{color:var(--accent)}
+.kpi-value.new-c{color:var(--new)}
+.kpi-value.rep-c{color:var(--rep)}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:4px;margin-bottom:1rem;flex-wrap:wrap}
+.tab{background:transparent;border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer;color:var(--text2);font-family:var(--font);transition:all .15s;white-space:nowrap}
+.tab:hover{border-color:var(--border2);color:var(--text)}
+.tab.active{background:var(--accent);border-color:var(--accent);color:#0f0e0d;font-weight:700}
+
+/* ── CHART CARDS ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem;margin-bottom:1rem}
+.card-title{font-size:12px;font-weight:500;color:var(--text2);letter-spacing:.04em;margin-bottom:.25rem}
+.card-note{font-size:11px;color:var(--text3);margin-bottom:.75rem}
+.chart-wrap{position:relative}
+.two-col{display:grid;grid-template-columns:1fr;gap:1rem}
+@media(min-width:700px){.two-col{grid-template-columns:1fr 1fr}}
+.three-col{display:grid;grid-template-columns:1fr;gap:1rem}
+@media(min-width:700px){.three-col{grid-template-columns:1fr 1fr 1fr}}
+
+/* ── LEGEND ── */
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:.75rem}
+.ld{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2)}
+.ls{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+/* ── CHANNEL BARS (経路比較) ── */
+.ch-bar-list{display:flex;flex-direction:column;gap:.6rem}
+.ch-bar-item{display:grid;grid-template-columns:7rem 1fr 4rem;align-items:center;gap:.75rem}
+@media(max-width:480px){.ch-bar-item{grid-template-columns:5rem 1fr 3rem}}
+.ch-bar-name{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch-bar-track{height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.ch-bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
+.ch-bar-val{font-size:12px;font-family:var(--mono);color:var(--text);text-align:right}
+
+/* ── HEATMAP ── */
+.hm-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.hm{border-collapse:collapse;font-size:11px;width:100%;min-width:520px}
+table.hm th{padding:5px 8px;color:var(--text3);font-weight:400;white-space:nowrap;text-align:right}
+table.hm th.rh{text-align:left;color:var(--text2)}
+table.hm td{padding:5px 8px;text-align:right;border-radius:3px;white-space:nowrap;font-family:var(--mono);font-size:11px}
+
+/* ── SUMMARY ── */
+.summary-grid{display:grid;grid-template-columns:1fr;gap:.75rem}
+@media(min-width:700px){.summary-grid{grid-template-columns:1fr 1fr}}
+.insight{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);padding:1rem 1.25rem}
+.insight-tag{font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--accent);text-transform:uppercase;margin-bottom:.4rem}
+.insight-text{font-size:13px;color:var(--text2);line-height:1.7}
+.insight-text strong{color:var(--text);font-weight:500}
+
+/* ── FOOTER ── */
+footer{border-top:1px solid var(--border);padding:1.5rem 1rem;text-align:center;color:var(--text3);font-size:11px}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <span class="nav-title">琥 千房 虎ノ門</span>
+    <div class="nav-links">
+      <a class="nav-link active" href="#overview" onclick="setNav(this)">概要</a>
+      <a class="nav-link" href="#channel" onclick="setNav(this)">流入経路</a>
+      <a class="nav-link" href="#trend" onclick="setNav(this)">推移</a>
+      <a class="nav-link" href="#repeat" onclick="setNav(this)">新規/リピート</a>
+      <a class="nav-link" href="#course" onclick="setNav(this)">コース</a>
+      <a class="nav-link" href="#summary" onclick="setNav(this)">サマリー</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+<!-- ══ OVERVIEW ══ -->
+<section id="overview">
+  <div class="section-label">概要 — 2021年6月〜2026年5月</div>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">有効予約 総組数</div><div class="kpi-value accent" id="kpi-total">—</div><div class="kpi-sub" id="kpi-cancel">—</div></div>
+    <div class="kpi"><div class="kpi-label">総来店人数</div><div class="kpi-value" id="kpi-pax">—</div><div class="kpi-sub" id="kpi-avg">—</div></div>
+    <div class="kpi"><div class="kpi-label">新規</div><div class="kpi-value new-c" id="kpi-new">—</div><div class="kpi-sub">初来店</div></div>
+    <div class="kpi"><div class="kpi-label">リピーター</div><div class="kpi-value rep-c" id="kpi-rep">—</div><div class="kpi-sub" id="kpi-rep-rate">—</div></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">流入経路 構成比</div>
+      <div class="chart-wrap" style="height:220px"><canvas id="c_pie" role="img" aria-label="流入経路構成比"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">経路別 組数ランキング</div>
+      <div class="ch-bar-list" id="ch-bars"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CHANNEL ══ -->
+<section id="channel">
+  <div class="section-label">流入経路 詳細分析</div>
+  <div class="tabs" id="ch-tabs"></div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">曜日分布</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c_weekday" role="img" aria-label="曜日別予約分布"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">時間帯（ランチ/ディナー）</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c_time" role="img" aria-label="時間帯分布"></canvas></div>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">席区分</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c_seat" role="img" aria-label="席区分"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">コース区分</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c_course_ch" role="img" aria-label="コース区分"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">経路別 主要指標一覧（ヒートマップ）</div>
+    <div class="hm-wrap" id="hm-table"></div>
+  </div>
+</section>
+
+<!-- ══ TREND ══ -->
+<section id="trend">
+  <div class="section-label">時系列推移</div>
+  <div class="tabs">
+    <button class="tab active" onclick="setTrendTab('monthly',this)">月次</button>
+    <button class="tab" onclick="setTrendTab('yearly',this)">年次</button>
+    <button class="tab" onclick="setTrendTab('seasonal',this)">季節性</button>
+  </div>
+  <div id="trend-monthly">
+    <div class="card">
+      <div class="card-title">月次予約組数推移（経路別積み上げ）</div>
+      <div class="legend" id="leg-monthly"></div>
+      <div class="chart-wrap" style="height:280px"><canvas id="c_monthly" role="img" aria-label="月次推移"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">月次 経路別シェア（%）</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c_monthly_pct" role="img" aria-label="月次構成比"></canvas></div>
+    </div>
+  </div>
+  <div id="trend-yearly" style="display:none">
+    <div class="card">
+      <div class="card-title">年次予約組数（経路別積み上げ）</div>
+      <div class="legend" id="leg-yearly"></div>
+      <div class="chart-wrap" style="height:280px"><canvas id="c_yearly" role="img" aria-label="年次推移"></canvas></div>
+    </div>
+  </div>
+  <div id="trend-seasonal" style="display:none">
+    <div class="card">
+      <div class="card-title">月別予約傾向（全年累計）</div>
+      <div class="legend" id="leg-seasonal"></div>
+      <div class="chart-wrap" style="height:260px"><canvas id="c_seasonal" role="img" aria-label="季節性"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ REPEAT ══ -->
+<section id="repeat">
+  <div class="section-label">新規 / リピーター</div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">経路別 リピート率</div>
+      <div class="card-note">電話/直接のみ50%超。グルメサイトは実質新規獲得専用チャネル。</div>
+      <div class="chart-wrap" style="height:220px"><canvas id="c_rep_rate" role="img" aria-label="経路別リピート率"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">新規 vs リピート 平均人数</div>
+      <div class="card-note">電話リピーターは2.0人と最少。少人数常連層の存在。</div>
+      <div class="legend"><span class="ld"><span class="ls" style="background:var(--new)"></span>新規</span><span class="ld"><span class="ls" style="background:var(--rep)"></span>リピート</span></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="c_rep_pax" role="img" aria-label="新規リピート平均人数"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">月次 新規・リピート推移</div>
+    <div class="legend"><span class="ld"><span class="ls" style="background:var(--new)"></span>新規</span><span class="ld"><span class="ls" style="background:var(--rep)"></span>リピート</span></div>
+    <div class="chart-wrap" style="height:240px"><canvas id="c_rep_monthly" role="img" aria-label="月次新規リピート"></canvas></div>
+  </div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">電話/直接：年次 新規→リピート化推移</div>
+      <div class="card-note">2025年にリピートが新規を初逆転（755 vs 340）。</div>
+      <div class="legend"><span class="ld"><span class="ls" style="background:var(--new)"></span>新規</span><span class="ld"><span class="ls" style="background:var(--rep)"></span>リピート</span></div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c_tel_yearly" role="img" aria-label="電話年次推移"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">リピーター 来店回数分布</div>
+      <div class="card-note">31回以上の超常連が全リピーターの46%。</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c_bucket" role="img" aria-label="来店回数分布"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ COURSE ══ -->
+<section id="course">
+  <div class="section-label">コース分析</div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">一休：コース別組数（WEB予約ノート抽出）</div>
+      <div class="card-note">茜・藍・藤が上位。席のみも291組（12%）。</div>
+      <div class="chart-wrap" style="height:240px"><canvas id="c_ikyu" role="img" aria-label="一休コース別"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">経路別 コース構成比</div>
+      <div class="legend" id="leg-course"></div>
+      <div class="chart-wrap" style="height:240px"><canvas id="c_course_share" role="img" aria-label="コース構成比"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">新規 vs リピーター コース選択比較</div>
+    <div class="card-note">未選択/媒体を除く。リピーターは藤・翡翠の比率が上昇。</div>
+    <div class="legend"><span class="ld"><span class="ls" style="background:var(--new)"></span>新規</span><span class="ld"><span class="ls" style="background:var(--rep)"></span>リピート</span></div>
+    <div class="chart-wrap" style="height:220px"><canvas id="c_course_nr" role="img" aria-label="新規リピートコース比較"></canvas></div>
+  </div>
+</section>
+
+<!-- ══ SUMMARY ══ -->
+<section id="summary">
+  <div class="section-label">分析サマリー</div>
+  <div class="summary-grid" id="insights"></div>
+</section>
+
+</div>
+<footer>琥 千房 虎ノ門 予約分析ダッシュボード — 2021/06〜2026/05 &nbsp;|&nbsp; 社内限定資料</footer>
+
+<script>
+// ──── カラー定義 ────
+const CH_COLORS = ['#5b9bd5','#5daa87','#d07a5a','#8f7fca','#c07090','#7a7570'];
+const COURSE_COLORS = {席のみ:'#7a7570',翡翠:'#8f7fca',藤:'#5daa87',藍:'#5b9bd5',茜:'#c07090',琥:'#d07a5a',碧:'#3a8a70',瑠璃:'#3a6aaa',蓮:'#4a9a60',蘭:'#c0a040','未選択/媒体':'#404040'};
+const CHANNELS = DATA.channels;
+const DAYS = ['月','火','水','木','金','土','日'];
+const BUCKET_ORDER = ['2〜3回','4〜5回','6〜10回','11〜30回','31回以上'];
+
+let chartInstances = {};
+function dc(ids){ ids.forEach(id=>{if(chartInstances[id]){chartInstances[id].destroy();delete chartInstances[id];}}); }
+
+const shortMonthLabel = DATA.months.map(m=>(m.endsWith('-01')||m.endsWith('-06'))?m.replace('-','/'):'' );
+
+// ──── Chart共通オプション ────
+const baseOpts = {
+  responsive:true, maintainAspectRatio:false,
+  plugins:{legend:{display:false}},
+  scales:{
+    x:{ticks:{color:'#6a6460',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'},border:{color:'transparent'}},
+    y:{ticks:{color:'#6a6460',font:{size:10}},grid:{color:'rgba(255,255,255,0.06)'},border:{color:'transparent'}}
+  }
+};
+function mergeOpts(...objs){ return Object.assign({},baseOpts,...objs); }
+
+// ──── KPI ────
+function renderKPI(){
+  const k = DATA.kpi;
+  document.getElementById('kpi-total').textContent = k.total_valid.toLocaleString();
+  document.getElementById('kpi-cancel').textContent = `キャンセル率 ${k.cancel_rate}%`;
+  document.getElementById('kpi-pax').textContent = k.total_pax.toLocaleString();
+  document.getElementById('kpi-avg').textContent = `平均 ${k.avg_pax} 人/組`;
+  document.getElementById('kpi-new').textContent = k.new_count.toLocaleString();
+  document.getElementById('kpi-rep').textContent = k.rep_count.toLocaleString();
+  document.getElementById('kpi-rep-rate').textContent = `リピート率 ${k.rep_rate}%`;
+}
+
+// ──── 経路パイ ────
+function renderPie(){
+  chartInstances.pie = new Chart(document.getElementById('c_pie'),{
+    type:'doughnut',
+    data:{
+      labels:CHANNELS,
+      datasets:[{data:CHANNELS.map(c=>DATA.ch_data[c].groups),backgroundColor:CH_COLORS,borderWidth:0,borderRadius:2}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'right',labels:{color:'#a09a90',font:{size:11},boxWidth:10,padding:8}}}}
+  });
+}
+
+// ──── 経路バー ────
+function renderChBars(){
+  const max = Math.max(...CHANNELS.map(c=>DATA.ch_data[c].groups));
+  const el = document.getElementById('ch-bars');
+  el.innerHTML = CHANNELS.map((ch,i)=>{
+    const d = DATA.ch_data[ch]; const pct = Math.round(d.groups/max*100);
+    return `<div class="ch-bar-item">
+      <span class="ch-bar-name">${ch}</span>
+      <div class="ch-bar-track"><div class="ch-bar-fill" style="width:${pct}%;background:${CH_COLORS[i]}"></div></div>
+      <span class="ch-bar-val">${d.groups.toLocaleString()}</span>
+    </div>`;
+  }).join('');
+}
+
+// ──── 経路タブ ────
+let activeChIdx = -1;
+function renderChTabs(){
+  const el = document.getElementById('ch-tabs');
+  let h = `<button class="tab ${activeChIdx<0?'active':''}" onclick="setChTab(-1,this)">全経路</button>`;
+  CHANNELS.forEach((ch,i)=>{ h+=`<button class="tab ${activeChIdx===i?'active':''}" onclick="setChTab(${i},this)">${ch}</button>`; });
+  el.innerHTML = h;
+}
+function setChTab(i, el){
+  activeChIdx=i;
+  document.querySelectorAll('#ch-tabs .tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderChannelCharts();
+}
+
+function getVisCh(){ return activeChIdx<0?CHANNELS:[CHANNELS[activeChIdx]]; }
+
+function renderChannelCharts(){
+  dc(['c_weekday','c_time','c_seat','c_course_ch']);
+  const vis = getVisCh();
+
+  // 曜日
+  chartInstances.c_weekday = new Chart(document.getElementById('c_weekday'),{
+    type:'bar',
+    data:{labels:DAYS,datasets:vis.map((ch,i)=>({
+      label:ch,data:DAYS.map(d=>DATA.ch_data[ch].weekday[d]||0),
+      backgroundColor:CH_COLORS[CHANNELS.indexOf(ch)],borderWidth:0,borderRadius:3,stack:'s'
+    }))},
+    options:mergeOpts({scales:{x:{...baseOpts.scales.x,stacked:true},y:{...baseOpts.scales.y,stacked:true}}})
+  });
+
+  // 時間帯
+  chartInstances.c_time = new Chart(document.getElementById('c_time'),{
+    type:'bar',
+    data:{labels:vis,datasets:[
+      {label:'ランチ',data:vis.map(c=>DATA.ch_data[c].time?.ランチ||0),backgroundColor:'#5b9bd5',borderWidth:0,borderRadius:3,stack:'s'},
+      {label:'ディナー',data:vis.map(c=>DATA.ch_data[c].time?.ディナー||0),backgroundColor:'#d07a5a',borderWidth:0,borderRadius:3,stack:'s'},
+    ]},
+    options:mergeOpts({scales:{x:{...baseOpts.scales.x,stacked:true,ticks:{...baseOpts.scales.x.ticks,maxRotation:20}},y:{...baseOpts.scales.y,stacked:true}}})
+  });
+
+  // 席
+  const seatTypes = ['テーブル','個室','カウンター'];
+  const seatColors = ['#5b9bd5','#8f7fca','#5daa87'];
+  chartInstances.c_seat = new Chart(document.getElementById('c_seat'),{
+    type:'bar',
+    data:{labels:vis,datasets:seatTypes.map((s,i)=>({
+      label:s,data:vis.map(c=>DATA.ch_data[c].seat?.[s]||0),
+      backgroundColor:seatColors[i],borderWidth:0,borderRadius:3,stack:'s'
+    }))},
+    options:mergeOpts({scales:{x:{...baseOpts.scales.x,stacked:true,ticks:{...baseOpts.scales.x.ticks,maxRotation:20}},y:{...baseOpts.scales.y,stacked:true}}})
+  });
+
+  // コース
+  const courseKeys = ['席のみ','翡翠','藤','藍','茜','琥','碧','蓮'];
+  chartInstances.c_course_ch = new Chart(document.getElementById('c_course_ch'),{
+    type:'bar',
+    data:{labels:vis,datasets:courseKeys.map(c=>({
+      label:c,data:vis.map(ch=>DATA.ch_data[ch].course?.[c]||0),
+      backgroundColor:COURSE_COLORS[c],borderWidth:0,borderRadius:3,stack:'s'
+    }))},
+    options:mergeOpts({scales:{x:{...baseOpts.scales.x,stacked:true,ticks:{...baseOpts.scales.x.ticks,maxRotation:20}},y:{...baseOpts.scales.y,stacked:true}}})
+  });
+
+  renderHeatmap();
+}
+
+// ──── ヒートマップ ────
+function renderHeatmap(){
+  const metrics = [
+    {key:'groups',label:'組数',fmt:v=>v.toLocaleString()},
+    {key:'share',label:'シェア',fmt:v=>v+'%'},
+    {key:'rep_rate',label:'リピート率',fmt:v=>v+'%'},
+    {key:'avg_pax',label:'平均人数',fmt:v=>v+'人'},
+    {key:'weekend_rate',label:'土日率',fmt:v=>v+'%'},
+  ];
+  const max = {groups:3643,rep_rate:50.3,avg_pax:3.2,weekend_rate:38.5,share:40};
+  let h=`<table class="hm"><thead><tr><th class="rh">経路</th>`;
+  metrics.forEach(m=>h+=`<th>${m.label}</th>`);
+  h+=`</tr></thead><tbody>`;
+  CHANNELS.forEach((ch,i)=>{
+    h+=`<tr><th class="rh" style="color:${CH_COLORS[i]}">${ch}</th>`;
+    metrics.forEach(m=>{
+      const v = DATA.ch_data[ch][m.key]||0;
+      const t = Math.min((v/(max[m.key]||100)),1);
+      const bg = `rgba(200,169,110,${t*0.55})`;
+      const tc = t>0.5?'#f0ede8':'#a09a90';
+      h+=`<td style="background:${bg};color:${tc}">${m.fmt(v)}</td>`;
+    });
+    h+=`</tr>`;
+  });
+  h+=`</tbody></table>`;
+  document.getElementById('hm-table').innerHTML = h;
+}
+
+// ──── TREND ────
+let trendView = 'monthly';
+function setTrendTab(v,el){
+  trendView=v;
+  document.querySelectorAll('#trend .tabs .tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  ['monthly','yearly','seasonal'].forEach(x=>{document.getElementById('trend-'+x).style.display=x===v?'block':'none';});
+  if(v==='monthly') renderMonthly();
+  else if(v==='yearly') renderYearly();
+  else renderSeasonal();
+}
+
+function renderMonthly(){
+  dc(['c_monthly','c_monthly_pct']);
+  document.getElementById('leg-monthly').innerHTML = CHANNELS.map((ch,i)=>`<span class="ld"><span class="ls" style="background:${CH_COLORS[i]}"></span>${ch}</span>`).join('');
+  const labels = DATA.months.map(m=>m.replace('-','/'));
+  chartInstances.c_monthly = new Chart(document.getElementById('c_monthly'),{
+    type:'bar',
+    data:{labels,datasets:CHANNELS.map((ch,i)=>({
+      label:ch,data:DATA.monthly[ch],backgroundColor:CH_COLORS[i],borderWidth:0,stack:'s'
+    }))},
+    options:mergeOpts({scales:{
+      x:{...baseOpts.scales.x,stacked:true,ticks:{...baseOpts.scales.x.ticks,maxRotation:60,autoSkip:false,callback:(v,i)=>shortMonthLabel[i]}},
+      y:{...baseOpts.scales.y,stacked:true}
+    }})
+  });
+  const pctDs = CHANNELS.map((ch,i)=>({
+    label:ch,
+    data:DATA.months.map((_,mi)=>{const tot=DATA.monthly['合計'][mi];return tot>0?Math.round(DATA.monthly[ch][mi]/tot*100):0;}),
+    backgroundColor:CH_COLORS[i],borderWidth:0,stack:'s'
+  }));
+  chartInstances.c_monthly_pct = new Chart(document.getElementById('c_monthly_pct'),{
+    type:'bar',
+    data:{labels,datasets:pctDs},
+    options:mergeOpts({scales:{
+      x:{...baseOpts.scales.x,stacked:true,ticks:{...baseOpts.scales.x.ticks,maxRotation:60,autoSkip:false,callback:(v,i)=>shortMonthLabel[i]}},
+      y:{...baseOpts.scales.y,stacked:true,max:100,ticks:{...baseOpts.scales.y.ticks,callback:v=>v+'%'}}
+    }})
+  });
+}
+
+function renderYearly(){
+  dc(['c_yearly']);
+  document.getElementById('leg-yearly').innerHTML = CHANNELS.map((ch,i)=>`<span class="ld"><span class="ls" style="background:${CH_COLORS[i]}"></span>${ch}</span>`).join('');
+  chartInstances.c_yearly = new Chart(document.getElementById('c_yearly'),{
+    type:'bar',
+    data:{
+      labels:DATA.years,
+      datasets:CHANNELS.map((ch,i)=>({
+        label:ch,data:DATA.years.map(y=>DATA.yearly[ch]?.[y]?.total||0),
+        backgroundColor:CH_COLORS[i],borderWidth:0,borderRadius:3,stack:'s'
+      }))
+    },
+    options:mergeOpts({scales:{x:{...baseOpts.scales.x,stacked:true},y:{...baseOpts.scales.y,stacked:true}}})
+  });
+}
+
+function renderSeasonal(){
+  dc(['c_seasonal']);
+  document.getElementById('leg-seasonal').innerHTML = CHANNELS.map((ch,i)=>`<span class="ld"><span class="ls" style="background:${CH_COLORS[i]}"></span>${ch}</span>`).join('');
+  const mlabels=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  chartInstances.c_seasonal = new Chart(document.getElementById('c_seasonal'),{
+    type:'bar',
+    data:{labels:mlabels,datasets:CHANNELS.map((ch,i)=>({
+      label:ch,data:DATA.seasonal[ch],backgroundColor:CH_COLORS[i],borderWidth:0,stack:'s'
+    }))},
+    options:mergeOpts({scales:{x:{...baseOpts.scales.x,stacked:true},y:{...baseOpts.scales.y,stacked:true}}})
+  });
+}
+
+// ──── REPEAT ────
+function renderRepeat(){
+  // リピート率
+  chartInstances.c_rep_rate = new Chart(document.getElementById('c_rep_rate'),{
+    type:'bar',
+    data:{labels:CHANNELS,datasets:[{
+      label:'リピート率%',
+      data:CHANNELS.map(c=>DATA.ch_data[c].rep_rate),
+      backgroundColor:CHANNELS.map((_,i)=>CH_COLORS[i]),borderWidth:0,borderRadius:3
+    }]},
+    options:mergeOpts({scales:{
+      x:{...baseOpts.scales.x,ticks:{...baseOpts.scales.x.ticks,maxRotation:20}},
+      y:{...baseOpts.scales.y,max:60,ticks:{...baseOpts.scales.y.ticks,callback:v=>v+'%'}}
+    }})
+  });
+
+  // 平均人数
+  chartInstances.c_rep_pax = new Chart(document.getElementById('c_rep_pax'),{
+    type:'bar',
+    data:{labels:CHANNELS,datasets:[
+      {label:'新規',data:CHANNELS.map(c=>DATA.ch_data[c].new_avg_pax),backgroundColor:'#5b9bd5',borderWidth:0,borderRadius:3},
+      {label:'リピート',data:CHANNELS.map(c=>DATA.ch_data[c].rep_avg_pax),backgroundColor:'#5daa87',borderWidth:0,borderRadius:3},
+    ]},
+    options:mergeOpts({scales:{
+      x:{...baseOpts.scales.x,ticks:{...baseOpts.scales.x.ticks,maxRotation:20}},
+      y:{...baseOpts.scales.y,min:0,max:4}
+    }})
+  });
+
+  // 月次新規リピート
+  chartInstances.c_rep_monthly = new Chart(document.getElementById('c_rep_monthly'),{
+    type:'bar',
+    data:{
+      labels:DATA.months.map(m=>m.replace('-','/')),
+      datasets:[
+        {label:'新規',data:DATA.monthly['新規'],backgroundColor:'rgba(91,155,213,0.8)',borderWidth:0,stack:'s'},
+        {label:'リピート',data:DATA.monthly['リピート'],backgroundColor:'rgba(93,170,135,0.85)',borderWidth:0,stack:'s'},
+      ]
+    },
+    options:mergeOpts({scales:{
+      x:{...baseOpts.scales.x,stacked:true,ticks:{...baseOpts.scales.x.ticks,maxRotation:60,autoSkip:false,callback:(v,i)=>shortMonthLabel[i]}},
+      y:{...baseOpts.scales.y,stacked:true}
+    }})
+  });
+
+  // 電話年次
+  const years = DATA.years;
+  chartInstances.c_tel_yearly = new Chart(document.getElementById('c_tel_yearly'),{
+    type:'bar',
+    data:{labels:years,datasets:[
+      {label:'新規',data:years.map(y=>DATA.yearly['電話/直接']?.[y]?.new||0),backgroundColor:'#5b9bd5',borderWidth:0,borderRadius:3,stack:'s'},
+      {label:'リピート',data:years.map(y=>DATA.yearly['電話/直接']?.[y]?.rep||0),backgroundColor:'#5daa87',borderWidth:0,borderRadius:3,stack:'s'},
+    ]},
+    options:mergeOpts({scales:{x:{...baseOpts.scales.x,stacked:true},y:{...baseOpts.scales.y,stacked:true}}})
+  });
+
+  // バケット
+  chartInstances.c_bucket = new Chart(document.getElementById('c_bucket'),{
+    type:'doughnut',
+    data:{
+      labels:BUCKET_ORDER,
+      datasets:[{
+        data:BUCKET_ORDER.map(b=>DATA.rep_bucket_all[b]||0),
+        backgroundColor:['#2a4a6a','#3a6a9a','#5b9bd5','#85b7e8','#b5d4f4'],
+        borderWidth:0
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'right',labels:{color:'#a09a90',font:{size:10},boxWidth:10,padding:6}}}}
+  });
+}
+
+// ──── COURSE ────
+function renderCourse(){
+  // 一休コース
+  const ikKeys = Object.keys(DATA.ikyu_course).filter(k=>k!=='その他').sort((a,b)=>DATA.ikyu_course[b]-DATA.ikyu_course[a]);
+  chartInstances.c_ikyu = new Chart(document.getElementById('c_ikyu'),{
+    type:'bar',
+    data:{labels:ikKeys,datasets:[{
+      label:'組数',data:ikKeys.map(k=>DATA.ikyu_course[k]),
+      backgroundColor:ikKeys.map(k=>COURSE_COLORS[k]||'#7a7570'),borderWidth:0,borderRadius:3
+    }]},
+    options:mergeOpts({scales:{x:{...baseOpts.scales.x},y:{...baseOpts.scales.y}}})
+  });
+
+  // コース構成比
+  const courseKeys = ['席のみ','翡翠','藤','藍','茜','琥','碧','蓮','未選択/媒体'];
+  document.getElementById('leg-course').innerHTML = courseKeys.filter(c=>c!=='未選択/媒体').map(c=>`<span class="ld"><span class="ls" style="background:${COURSE_COLORS[c]}"></span>${c}</span>`).join('')+`<span class="ld"><span class="ls" style="background:#404040"></span>未選択/媒体</span>`;
+  const chForCourse = CHANNELS.filter(c=>c!=='その他');
+  chartInstances.c_course_share = new Chart(document.getElementById('c_course_share'),{
+    type:'bar',
+    data:{
+      labels:chForCourse,
+      datasets:courseKeys.map(c=>({
+        label:c,
+        data:chForCourse.map(ch=>{const tot=DATA.ch_data[ch].groups;return tot>0?Math.round((DATA.ch_data[ch].course?.[c]||0)/tot*100):0;}),
+        backgroundColor:COURSE_COLORS[c],borderWidth:0,stack:'s'
+      }))
+    },
+    options:mergeOpts({scales:{
+      x:{...baseOpts.scales.x,stacked:true,ticks:{...baseOpts.scales.x.ticks,maxRotation:20}},
+      y:{...baseOpts.scales.y,stacked:true,max:100,ticks:{...baseOpts.scales.y.ticks,callback:v=>v+'%'}}
+    }})
+  });
+
+  // 新規vsリピート コース
+  const nrCourses = ['席のみ','翡翠','藤','藍','茜','琥'];
+  const NEW_COURSE = {席のみ:539,翡翠:267,藤:208,茜:173,藍:167,琥:109};
+  const REP_COURSE = {席のみ:224,藤:86,翡翠:78,藍:65,茜:55,琥:54};
+  const newTot=Object.values(NEW_COURSE).reduce((s,v)=>s+v,0);
+  const repTot=Object.values(REP_COURSE).reduce((s,v)=>s+v,0);
+  chartInstances.c_course_nr = new Chart(document.getElementById('c_course_nr'),{
+    type:'bar',
+    data:{
+      labels:['新規','リピート'],
+      datasets:nrCourses.map(c=>({
+        label:c,data:[Math.round((NEW_COURSE[c]||0)/newTot*100),Math.round((REP_COURSE[c]||0)/repTot*100)],
+        backgroundColor:COURSE_COLORS[c],borderWidth:0,stack:'s'
+      }))
+    },
+    options:mergeOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw}%`}}},
+      scales:{x:{...baseOpts.scales.x,stacked:true},y:{...baseOpts.scales.y,stacked:true,max:100,ticks:{...baseOpts.scales.y.ticks,callback:v=>v+'%'}}}})
+  });
+}
+
+// ──── INSIGHTS ────
+const INSIGHTS = [
+  {tag:'流入構造',text:'<strong>電話/直接が40%</strong>と最大経路。常連・法人の平日業務需要が基盤。一休28%が第2位で週末ランチを担う。'},
+  {tag:'リピート',text:'<strong>電話リピート率50%超</strong>で他経路と別格。2025年に新規を逆転し、固定客化が完成段階へ。'},
+  {tag:'一休の特徴',text:'土日比率38%でランチ68%偏重。<strong>2023年ピーク後に微減</strong>傾向。茜・藍・藤の中価格コースが主力。'},
+  {tag:'Google成長',text:'2022年14組→2025年183組と急成長。<strong>ディナー73%</strong>で他経路と異なるパターン。リピート率は改善中（11%→21%）。'},
+  {tag:'Web予約(直接)',text:'コース選択率91%と最高。<strong>能動的に調べて予約する層</strong>。自社チャネル強化で客質・コスト両面改善が期待できる。'},
+  {tag:'課題：2回目促進',text:'グルメサイト経由の新規客はほぼ再訪しない（一休リピート率1%）。<strong>2回目予約への導線</strong>（自社連絡先）が最優先施策。'},
+  {tag:'コース×新規',text:'新規は席のみ・翡翠・藤が多い。リピーターは藤・翡翠の比率が上昇。<strong>藤がリピート定着コース</strong>の可能性。'},
+  {tag:'キャンセル',text:'全予約の<strong>24.6%がキャンセル</strong>。経路別分析と組み合わせた対策が有効。'},
+];
+function renderInsights(){
+  document.getElementById('insights').innerHTML = INSIGHTS.map(i=>`
+    <div class="insight">
+      <div class="insight-tag">${i.tag}</div>
+      <div class="insight-text">${i.text}</div>
+    </div>`).join('');
+}
+
+// ──── NAV ────
+function setNav(el){ document.querySelectorAll('.nav-link').forEach(b=>b.classList.remove('active')); el.classList.add('active'); }
+
+// ──── INIT ────
+renderKPI();
+renderPie();
+renderChBars();
+renderChTabs();
+renderChannelCharts();
+renderMonthly();
+renderRepeat();
+renderCourse();
+renderInsights();
+
+// スクロールでナビハイライト
+const sections = ['overview','channel','trend','repeat','course','summary'];
+window.addEventListener('scroll',()=>{
+  const y = window.scrollY+80;
+  let cur='';
+  sections.forEach(id=>{const el=document.getElementById(id);if(el&&el.offsetTop<=y)cur=id;});
+  document.querySelectorAll('.nav-link').forEach(b=>b.classList.toggle('active',b.getAttribute('href')==='#'+cur));
+},{passive:true});
+</script>
+</body>
+</html>
