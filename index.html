@@ -617,8 +617,8 @@ function renderCourse(){
 
   // 新規vsリピート コース
   const nrCourses = ['席のみ','翡翠','藤','藍','茜','琥'];
-  const NEW_COURSE = {席のみ:539,翡翠:267,藤:208,茜:173,藍:167,琥:109};
-  const REP_COURSE = {席のみ:224,藤:86,翡翠:78,藍:65,茜:55,琥:54};
+  const NEW_COURSE = {席のみ:535,翡翠:267,藤:208,茜:173,藍:167,琥:109};
+  const REP_COURSE = {席のみ:221,藤:86,翡翠:78,藍:65,茜:55,琥:53};
   const newTot=Object.values(NEW_COURSE).reduce((s,v)=>s+v,0);
   const repTot=Object.values(REP_COURSE).reduce((s,v)=>s+v,0);
   chartInstances.c_course_nr = new Chart(document.getElementById('c_course_nr'),{
